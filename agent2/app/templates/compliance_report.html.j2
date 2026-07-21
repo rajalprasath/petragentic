@@ -1,0 +1,181 @@
+{# agent2/app/templates/compliance_report.html.j2
+   Jinja2 HTML template for the security compliance report.
+   CIS Benchmark + NIST 800-53 columns shown per finding. #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security Compliance Report — {{ report.scan_id }}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; font-size: 14px; color: #1f2328; background: #fff; line-height: 1.6; }
+    .page { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    h2 { font-size: 16px; font-weight: 600; margin: 28px 0 12px; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; }
+    h3 { font-size: 14px; font-weight: 600; margin: 16px 0 8px; }
+    .meta { color: #57606a; font-size: 12px; margin-bottom: 24px; }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+    .badge-critical { background: #fde8e8; color: #b91c1c; }
+    .badge-high     { background: #fff3e0; color: #c2410c; }
+    .badge-medium   { background: #fef9c3; color: #a16207; }
+    .badge-low      { background: #e8f5e9; color: #15803d; }
+    .badge-info     { background: #e8f0fe; color: #1d4ed8; }
+    .badge-compliant     { background: #e8f5e9; color: #15803d; }
+    .badge-non_compliant { background: #fde8e8; color: #b91c1c; }
+    .badge-partial       { background: #fff3e0; color: #c2410c; }
+    .badge-scan_failed   { background: #f3f4f6; color: #6b7280; }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 16px 0; }
+    .stat-box { border: 1px solid #e5e7eb; border-radius: 6px; padding: 14px 16px; }
+    .stat-box .label { font-size: 11px; color: #57606a; text-transform: uppercase; letter-spacing: .5px; }
+    .stat-box .value { font-size: 28px; font-weight: 700; }
+    .stat-box.critical .value { color: #b91c1c; }
+    .stat-box.high     .value { color: #c2410c; }
+    .stat-box.medium   .value { color: #a16207; }
+    .stat-box.low      .value { color: #15803d; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 24px; }
+    th { background: #f7f8fa; text-align: left; padding: 8px 10px; border: 1px solid #e5e7eb; font-weight: 600; white-space: nowrap; }
+    td { padding: 8px 10px; border: 1px solid #e5e7eb; vertical-align: top; }
+    tr:nth-child(even) td { background: #fafafa; }
+    details { margin: 4px 0; }
+    summary { cursor: pointer; color: #3b82d4; font-size: 12px; }
+    pre { background: #1e1e1e; color: #d4d4d4; padding: 12px 14px; border-radius: 4px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; margin-top: 6px; }
+    .server-section { border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 20px; }
+    .server-header { background: #f7f8fa; padding: 12px 16px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
+    .server-body { padding: 16px; }
+    footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 11px; color: #57606a; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Security Compliance Report</h1>
+  <div class="meta">
+    Scan ID: <strong>{{ report.scan_id }}</strong> &nbsp;|&nbsp;
+    Server Class: <strong>{{ report.server_class }}</strong> &nbsp;|&nbsp;
+    Scan Type: <strong>{{ report.scan_type }}</strong> &nbsp;|&nbsp;
+    Triggered by: <strong>{{ report.triggered_by }}</strong> &nbsp;|&nbsp;
+    Generated: <strong>{{ generated_at }}</strong>
+  </div>
+
+  {# ── Summary ────────────────────────────────────────────────────────────── #}
+  <h2>Executive Summary</h2>
+  <div class="summary-grid">
+    <div class="stat-box"><div class="label">Total Servers</div><div class="value">{{ report.summary.total_servers }}</div></div>
+    <div class="stat-box"><div class="label">Compliant</div><div class="value" style="color:#15803d">{{ report.summary.compliant_servers }}</div></div>
+    <div class="stat-box"><div class="label">Non-Compliant</div><div class="value" style="color:#b91c1c">{{ report.summary.non_compliant_servers }}</div></div>
+    <div class="stat-box critical"><div class="label">Critical Findings</div><div class="value">{{ report.summary.critical_findings }}</div></div>
+    <div class="stat-box high"><div class="label">High Findings</div><div class="value">{{ report.summary.high_findings }}</div></div>
+    <div class="stat-box medium"><div class="label">Medium Findings</div><div class="value">{{ report.summary.medium_findings }}</div></div>
+    <div class="stat-box low"><div class="label">Low Findings</div><div class="value">{{ report.summary.low_findings }}</div></div>
+    <div class="stat-box"><div class="label">Total Findings</div><div class="value">{{ report.summary.total_findings }}</div></div>
+  </div>
+
+  {% if report.summary.top_cis_violations %}
+  <h3>Top CIS Violations</h3>
+  <ul>
+    {% for cis in report.summary.top_cis_violations %}
+    <li>{{ cis }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {# ── Per-server results ─────────────────────────────────────────────────── #}
+  <h2>Server Results</h2>
+  {% for result in report.server_results %}
+  <div class="server-section">
+    <div class="server-header">
+      <strong>{{ result.server }}</strong>
+      <span class="badge badge-{{ result.compliance_status.value }}">{{ result.compliance_status.value | upper }}</span>
+    </div>
+    <div class="server-body">
+
+      {% if result.error %}
+      <p style="color:#b91c1c"><strong>Scan Error:</strong> {{ result.error }}</p>
+      {% elif result.findings %}
+
+      <table>
+        <thead>
+          <tr>
+            <th>Severity</th>
+            <th>Category</th>
+            <th>Title</th>
+            <th>CIS Control</th>
+            <th>NIST Control</th>
+            <th>New?</th>
+            <th>Remediation</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for finding in result.findings | sort(attribute='severity') %}
+          <tr>
+            <td><span class="badge badge-{{ finding.severity.value }}">{{ finding.severity.value | upper }}</span></td>
+            <td>{{ finding.category }}</td>
+            <td>
+              {{ finding.title }}
+              <details>
+                <summary>Details</summary>
+                <small>Expected: {{ finding.expected_value }}<br>Actual: {{ finding.actual_value }}</small>
+              </details>
+            </td>
+            <td>
+              <strong>{{ finding.control.cis_control_id }}</strong><br>
+              <small>{{ finding.control.cis_description }}</small>
+            </td>
+            <td>
+              <strong>{{ finding.control.nist_control }}</strong> ({{ finding.control.nist_family }})<br>
+              <small>{{ finding.control.nist_description }}</small>
+            </td>
+            <td>{% if finding.is_new %}<span class="badge badge-critical">NEW</span>{% else %}Recurring{% endif %}</td>
+            <td>
+              {% if finding.remediation %}
+              <details>
+                <summary>View PS1 Script</summary>
+                <pre>{{ finding.remediation.powershell_script | e }}</pre>
+                <small>Type: {{ finding.remediation.script_type }} | Risk: {{ finding.remediation.estimated_risk }} | Syntax validated: {{ finding.remediation.syntax_validated }}</small>
+              </details>
+              {% else %}
+              <em>Not generated</em>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      {% else %}
+      <p style="color:#15803d">&#10003; No drift findings — server is compliant with the Gold Image baseline.</p>
+      {% endif %}
+
+      {% if result.snapshot and result.snapshot.collection_errors %}
+      <h3>Collection Warnings</h3>
+      <ul>
+        {% for err in result.snapshot.collection_errors %}
+        <li style="color:#c2410c">{{ err }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+
+    </div>
+  </div>
+  {% endfor %}
+
+  {# ── Artefacts ──────────────────────────────────────────────────────────── #}
+  <h2>Report Artefacts</h2>
+  <table>
+    <tr><th>Format</th><th>COS URI</th></tr>
+    <tr><td>JSON</td><td><code>{{ report.cos_json_uri }}</code></td></tr>
+    <tr><td>HTML</td><td><code>{{ report.cos_html_uri }}</code></td></tr>
+  </table>
+
+  <footer>
+    Petragentic Security Compliance Agent &nbsp;|&nbsp;
+    IBM watsonx.ai Granite {{ report.prompt_template_version }} &nbsp;|&nbsp;
+    CIS Microsoft Windows Server Benchmark v3.0 &nbsp;|&nbsp;
+    NIST SP 800-53 Rev 5 &nbsp;|&nbsp;
+    Made with IBM Bob
+  </footer>
+
+</div>
+</body>
+</html>

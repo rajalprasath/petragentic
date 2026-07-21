@@ -1,0 +1,9 @@
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+ibm-watsonx-ai>=1.0.3
+ibm-cos-sdk>=2.13.0
+ibm-platform-services>=0.53.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+requests>=2.31.0

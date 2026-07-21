@@ -1,0 +1,175 @@
+name: Deploy to IBM Cloud
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "agent1/**"
+      - "agent2/**"
+      - "gateway/**"
+      - "orchestrate/**"
+      - "shared/**"
+
+env:
+  ICR_REGION: us.icr.io
+  ICR_NAMESPACE: petragentic
+  OCP_NAMESPACE: petragentic
+  IBM_CLOUD_REGION: us-south
+
+jobs:
+  # ── Detect which services changed ─────────────────────────────────────────
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      agent1: ${{ steps.filter.outputs.agent1 }}
+      agent2: ${{ steps.filter.outputs.agent2 }}
+      gateway: ${{ steps.filter.outputs.gateway }}
+      orchestrate: ${{ steps.filter.outputs.orchestrate }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            agent1:
+              - 'agent1/**'
+              - 'shared/**'
+            agent2:
+              - 'agent2/**'
+              - 'shared/**'
+            gateway:
+              - 'gateway/**'
+            orchestrate:
+              - 'orchestrate/**'
+
+  # ── Build → Scan → Deploy ──────────────────────────────────────────────────
+  deploy:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: agent1
+            changed: ${{ needs.detect-changes.outputs.agent1 }}
+            port: 8001
+          - service: agent2
+            changed: ${{ needs.detect-changes.outputs.agent2 }}
+            port: 8002
+          - service: gateway
+            changed: ${{ needs.detect-changes.outputs.gateway }}
+            port: 8080
+          - service: orchestrate
+            changed: ${{ needs.detect-changes.outputs.orchestrate }}
+            port: 8003
+
+    steps:
+      - uses: actions/checkout@v4
+        if: matrix.changed == 'true'
+
+      # ── Login to IBM Cloud ───────────────────────────────────────────────
+      - name: IBM Cloud CLI login
+        if: matrix.changed == 'true'
+        uses: IBM/ibmcloud-cli-action@v1.1.0
+        with:
+          version: "latest"
+          args: login --apikey ${{ secrets.IBMCLOUD_API_KEY }} -r ${{ env.IBM_CLOUD_REGION }}
+
+      - name: Login to IBM Container Registry
+        if: matrix.changed == 'true'
+        run: ibmcloud cr login
+
+      # ── Build Docker image ───────────────────────────────────────────────
+      - name: Set image tag
+        if: matrix.changed == 'true'
+        id: tag
+        run: echo "IMAGE_TAG=${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
+
+      - name: Build multi-stage image
+        if: matrix.changed == 'true'
+        run: |
+          docker build \
+            -f ${{ matrix.service }}/Dockerfile \
+            -t ${{ env.ICR_REGION }}/${{ env.ICR_NAMESPACE }}/${{ matrix.service }}:${{ steps.tag.outputs.IMAGE_TAG }} \
+            -t ${{ env.ICR_REGION }}/${{ env.ICR_NAMESPACE }}/${{ matrix.service }}:latest \
+            .
+
+      # ── Push to IBM Container Registry ──────────────────────────────────
+      - name: Push image
+        if: matrix.changed == 'true'
+        run: |
+          docker push ${{ env.ICR_REGION }}/${{ env.ICR_NAMESPACE }}/${{ matrix.service }}:${{ steps.tag.outputs.IMAGE_TAG }}
+          docker push ${{ env.ICR_REGION }}/${{ env.ICR_NAMESPACE }}/${{ matrix.service }}:latest
+
+      # ── Vulnerability scan ────────────────────────────────────────────────
+      - name: IBM CR Vulnerability Advisor scan
+        if: matrix.changed == 'true'
+        run: |
+          ibmcloud cr va \
+            ${{ env.ICR_REGION }}/${{ env.ICR_NAMESPACE }}/${{ matrix.service }}:${{ steps.tag.outputs.IMAGE_TAG }} \
+            --fail-on-critical || true   # warn; don't block on pilot
+
+      # ── Fetch secrets from IBM Secrets Manager → inject as OCP secret ────
+      - name: Configure OCP context
+        if: matrix.changed == 'true'
+        run: ibmcloud oc cluster config --cluster ${{ secrets.OCP_CLUSTER_ID }}
+
+      - name: Inject secrets into OpenShift
+        if: matrix.changed == 'true'
+        run: |
+          # Read the single JSON secret and expand into OCP secret
+          SECRET=$(ibmcloud sm secret-version-value \
+            --id ${{ secrets.SM_SECRET_ID }} \
+            --service-url ${{ secrets.SECRETS_MANAGER_URL }} \
+            --output json | python3 -c "import sys,json; d=json.load(sys.stdin); print(' '.join(f'--from-literal={k}={v}' for k,v in d.items()))")
+
+          oc create secret generic ${{ matrix.service }}-secrets \
+            -n ${{ env.OCP_NAMESPACE }} \
+            $SECRET \
+            --dry-run=client -o yaml | oc apply -f -
+
+      # ── Apply OCP manifests ───────────────────────────────────────────────
+      - name: Apply ConfigMap
+        if: matrix.changed == 'true'
+        run: |
+          oc apply -f infra/openshift/${{ matrix.service }}/configmap.yaml \
+            -n ${{ env.OCP_NAMESPACE }}
+
+      - name: Apply Deployment with new image tag
+        if: matrix.changed == 'true'
+        run: |
+          sed "s|IMAGE_TAG_PLACEHOLDER|${{ steps.tag.outputs.IMAGE_TAG }}|g" \
+            infra/openshift/${{ matrix.service }}/deployment.yaml | \
+            oc apply -n ${{ env.OCP_NAMESPACE }} -f -
+
+      - name: Apply Service and HPA
+        if: matrix.changed == 'true'
+        run: |
+          oc apply -f infra/openshift/${{ matrix.service }}/service.yaml \
+            -n ${{ env.OCP_NAMESPACE }}
+          oc apply -f infra/openshift/${{ matrix.service }}/hpa.yaml \
+            -n ${{ env.OCP_NAMESPACE }}
+
+      # ── Wait for rollout ──────────────────────────────────────────────────
+      - name: Wait for rollout
+        if: matrix.changed == 'true'
+        run: |
+          oc rollout status deployment/${{ matrix.service }} \
+            -n ${{ env.OCP_NAMESPACE }} \
+            --timeout=300s
+
+      # ── Smoke test ────────────────────────────────────────────────────────
+      - name: Apply Route (gateway only)
+        if: matrix.changed == 'true' && matrix.service == 'gateway'
+        run: |
+          oc apply -f infra/openshift/gateway/route.yaml \
+            -n ${{ env.OCP_NAMESPACE }}
+
+      - name: Smoke test health endpoint
+        if: matrix.changed == 'true'
+        run: |
+          POD=$(oc get pods -n ${{ env.OCP_NAMESPACE }} \
+            -l app=${{ matrix.service }} \
+            -o jsonpath='{.items[0].metadata.name}')
+          oc exec $POD -n ${{ env.OCP_NAMESPACE }} -- \
+            python -c "import urllib.request; urllib.request.urlopen('http://localhost:${{ matrix.port }}/health')"
+          echo "Health check passed for ${{ matrix.service }}"

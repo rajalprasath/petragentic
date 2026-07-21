@@ -1,0 +1,62 @@
+# watsonx Orchestrate — Skill Registration Manifest
+# Agent 1: Integration Design & Automation
+#
+# Import this file in the Orchestrate UI:
+#   Skills → Add skill → Import from file → skill_agent1.yaml
+# Or via CLI:
+#   orchestrate skills apply -f skill_agent1.yaml
+#
+# References:
+#   https://www.ibm.com/docs/en/watsonx/watson-orchestrate/current?topic=skills-creating
+
+kind: skill
+name: integration_design
+display_name: "Integration Design & Automation"
+description: |
+  Generates a complete enterprise integration design document from a
+  natural-language requirement. Returns the recommended tool, protocol,
+  data format, authentication method, and a full technical design document
+  with architectural decisions, security considerations, and implementation steps.
+
+icon: "integration"
+
+# The OpenAPI spec for this skill — imported alongside this manifest
+openapi_file: openapi_agent1.yaml
+
+# Which operations to expose as callable tools in Orchestrate
+operations:
+  - operationId: generate_integration_design
+    display_name: "Generate Integration Design"
+    description: |
+      Call this tool when the user asks to design, architect, or plan an
+      integration between two systems. Provide the full natural-language
+      requirement in the 'requirement' field.
+    confirmation_required: false    # agent can call autonomously
+    input_mapping:
+      requirement:
+        description: "Full natural-language integration requirement from the user"
+      pattern_hint:
+        description: "Broad pattern type: file_transfer, api_integration, event_streaming, etc."
+        default: unknown
+
+  - operationId: get_catalogue_stats
+    display_name: "Get Integration Catalogue Statistics"
+    description: |
+      Returns how many times each tool has been used historically.
+      Call this when the user asks about popular tools or wants context
+      before making a design decision.
+    confirmation_required: false
+
+# Auth: header forwarded from Orchestrate runtime — no extra credentials needed
+# (Orchestrate calls the ClusterIP service over the internal ROKS network)
+security:
+  type: none    # internal cluster traffic — no auth on ClusterIP
+
+# Conversation sample phrases that trigger this skill
+phrases:
+  - "design an integration"
+  - "create an integration design"
+  - "how should I integrate {source} with {target}"
+  - "which integration tool should I use"
+  - "generate a design document for"
+  - "what protocol should I use to connect"

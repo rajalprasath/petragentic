@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-config
+  namespace: petragentic
+data:
+  AGENT1_URL: "http://agent1-svc"
+  AGENT2_URL: "http://agent2-svc"
+  ORCHESTRATE_URL: "http://orchestrate-svc"
+  RATE_LIMIT_PER_MINUTE: "60"
+  UPSTREAM_CONNECT_TIMEOUT: "5.0"
+  UPSTREAM_READ_TIMEOUT: "120.0"
+  SERVICE_NAME: "gateway"
+  LOG_LEVEL: "INFO"
+  ENVIRONMENT: "production"

@@ -1,0 +1,139 @@
+# Petragentic — Local Development Compose File
+#
+# Prerequisites:
+#   1. Copy .env.example files and fill in real credentials:
+#        cp agent1/.env.example agent1/.env
+#        cp agent2/.env.example agent2/.env
+#        cp gateway/.env.example gateway/.env
+#   2. Fill in watsonx.ai / watsonx.data / IBM COS credentials in each .env file.
+#
+# Start all services:
+#   docker compose -f infra/docker-compose.yml up --build
+#
+# Run only agents (no gateway):
+#   docker compose -f infra/docker-compose.yml up --build agent1 agent2
+#
+# Notes:
+#   - Build context is always the repo root so Dockerfiles can COPY shared/
+#   - Services communicate over the "petragentic" bridge network
+#   - Volume mounts enable hot-reload via uvicorn --reload
+
+version: "3.9"
+
+networks:
+  petragentic:
+    driver: bridge
+
+services:
+
+  # ── Agent 1 — Integration Design & Automation ───────────────────────────────
+  agent1:
+    build:
+      context: ..          # repo root — required for COPY shared/
+      dockerfile: agent1/Dockerfile
+    image: petragentic/agent1:local
+    container_name: petragentic-agent1
+    ports:
+      - "8001:8001"
+    env_file:
+      - ../agent1/.env
+    volumes:
+      - ../agent1/app:/app/app:ro
+      - ../shared:/app/shared:ro
+    networks:
+      - petragentic
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ── Agent 2 — Security Compliance & Audit ───────────────────────────────────
+  agent2:
+    build:
+      context: ..
+      dockerfile: agent2/Dockerfile
+    image: petragentic/agent2:local
+    container_name: petragentic-agent2
+    ports:
+      - "8002:8002"
+    env_file:
+      - ../agent2/.env
+    volumes:
+      - ../agent2/app:/app/app:ro
+      - ../shared:/app/shared:ro
+    networks:
+      - petragentic
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ── Gateway — IBM App ID reverse proxy ──────────────────────────────────────
+  gateway:
+    build:
+      context: ..
+      dockerfile: gateway/Dockerfile
+    image: petragentic/gateway:local
+    container_name: petragentic-gateway
+    ports:
+      - "8080:8080"
+    env_file:
+      - ../gateway/.env
+    environment:
+      # Override upstream URLs to use Docker service names
+      AGENT1_URL: "http://agent1:8001"
+      AGENT2_URL: "http://agent2:8002"
+    volumes:
+      - ../gateway/app:/app/gateway/app:ro
+    networks:
+      - petragentic
+    depends_on:
+      agent1:
+        condition: service_healthy
+      agent2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ── Orchestrate — ReAct agent (watsonx Orchestrate) ─────────────────────────
+  orchestrate:
+    build:
+      context: ..
+      dockerfile: orchestrate/Dockerfile
+    image: petragentic/orchestrate:local
+    container_name: petragentic-orchestrate
+    ports:
+      - "8003:8003"
+    env_file:
+      - ../orchestrate/.env
+    environment:
+      # Override upstream URLs to use Docker service names
+      AGENT1_URL: "http://agent1:8001"
+      AGENT2_URL: "http://agent2:8002"
+    volumes:
+      - ../orchestrate/app:/app/orchestrate/app:ro
+    networks:
+      - petragentic
+    depends_on:
+      agent1:
+        condition: service_healthy
+      agent2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped

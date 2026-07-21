@@ -1,0 +1,67 @@
+# watsonx Orchestrate — Skill Registration Manifest
+# Agent 2: Security Compliance & Audit
+#
+# Import this file in the Orchestrate UI:
+#   Skills → Add skill → Import from file → skill_agent2.yaml
+# Or via CLI:
+#   orchestrate skills apply -f skill_agent2.yaml
+
+kind: skill
+name: security_compliance_audit
+display_name: "Security Compliance & Audit"
+description: |
+  Validates Windows server security baselines over WinRM/PSRemoting against
+  CIS Benchmark v3.0 and NIST 800-53 Rev 5 Gold Images. Detects drift,
+  generates PowerShell remediation scripts, and produces HTML compliance reports.
+
+icon: "security"
+
+openapi_file: openapi_agent2.yaml
+
+operations:
+  - operationId: run_security_audit
+    display_name: "Run Security Baseline Audit"
+    description: |
+      Connects to the specified Windows servers and runs a full security
+      compliance audit. Returns drift findings with severity ratings, CIS/NIST
+      control mappings, and generated PowerShell remediation scripts.
+      Call this when the user asks to validate, audit, or check server compliance.
+    confirmation_required: true     # high-impact — ask user before connecting to servers
+    input_mapping:
+      servers:
+        description: "List of server hostnames or IP addresses to audit"
+      server_class:
+        description: "Gold Image class: standard-windows-server, domain-controller, sql-server"
+        default: standard-windows-server
+      scan_type:
+        description: "Type of scan: new_validation (first time) or periodic_audit (routine)"
+        default: periodic_audit
+      winrm_username:
+        description: "Windows admin account for WinRM — fetched from Secrets Manager by default"
+      winrm_password:
+        description: "Credential — always fetched from IBM Secrets Manager at runtime"
+      triggered_by:
+        default: orchestrate_agent
+
+  - operationId: get_scan_report
+    display_name: "Get Compliance Report"
+    description: |
+      Retrieves a previously generated compliance scan report by scan ID.
+      Call this when the user asks to see, review, or summarise an audit result.
+    confirmation_required: false
+    input_mapping:
+      scan_id:
+        description: "UUID of the scan to retrieve"
+
+security:
+  type: none
+
+phrases:
+  - "audit the server"
+  - "check compliance of"
+  - "validate security baseline for"
+  - "run a security check on"
+  - "scan {server} for drift"
+  - "is {server} compliant"
+  - "generate a compliance report for"
+  - "what are the findings for"

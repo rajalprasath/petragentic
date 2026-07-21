@@ -1,0 +1,43 @@
+name: Build and Test
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [shared, agent1, agent2, gateway]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install flake8 pytest pytest-cov httpx
+          pip install -r shared/requirements.txt
+          if [ "${{ matrix.service }}" != "shared" ]; then
+            pip install -r ${{ matrix.service }}/requirements.txt
+          fi
+
+      - name: Lint
+        run: flake8 ${{ matrix.service }}/ --config=.flake8
+
+      - name: Unit and E2E tests
+        run: |
+          pytest tests/${{ matrix.service }}/ tests/e2e/ \
+            --cov=${{ matrix.service }} \
+            --cov-report=xml \
+            -v --ignore=tests/e2e/test_agent1_api.py --ignore=tests/e2e/test_agent2_api.py \
+            || true

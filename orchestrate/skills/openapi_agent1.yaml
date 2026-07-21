@@ -1,0 +1,139 @@
+openapi: "3.1.0"
+
+info:
+  title: "Petragentic — Integration Design Skill"
+  description: |
+    Generates enterprise integration design documents from natural-language
+    requirements using IBM Granite. This skill is registered in watsonx Orchestrate
+    so the Orchestrate agent can call it as a tool step within a ReAct loop.
+  version: "1.0.0"
+  contact:
+    name: "Petragentic Platform Team"
+
+servers:
+  - url: "http://agent1-svc"
+    description: "ROKS ClusterIP (internal)"
+  - url: "http://localhost:8001"
+    description: "Local development"
+
+paths:
+  /design:
+    post:
+      operationId: "generate_integration_design"
+      summary: "Generate an end-to-end integration design document"
+      description: |
+        Accepts a natural-language integration requirement and returns a fully
+        structured design document. Internally recommends the best approved
+        enterprise tool (IBM Redwood, webMethods, Apache NiFi, Azure Logic Apps),
+        protocol, data format, and authentication method. Stores the artefact in
+        IBM COS and updates the learnable catalogue.
+      tags:
+        - "design"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DesignRequest"
+            example:
+              requirement: "Move daily CSV exports from SAP ERP to IBM Db2 Warehouse. Files ~500 MB. Requires certificate-based auth."
+              pattern_hint: "file_transfer"
+              requester: "alice@example.com"
+              tags: ["sap", "db2", "batch"]
+      responses:
+        "200":
+          description: "Design document generated successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DesignResponse"
+        "422":
+          description: "Governance check failed or validation error"
+        "502":
+          description: "watsonx.ai inference error"
+
+  /catalogue/stats:
+    get:
+      operationId: "get_catalogue_stats"
+      summary: "Return integration catalogue usage statistics"
+      description: |
+        Returns historical tool and protocol usage counts from the learnable
+        watsonx.data integration catalogue. Orchestrate can call this to
+        give the LLM context about which tools are most frequently used.
+      tags:
+        - "catalogue"
+      responses:
+        "200":
+          description: "Catalogue statistics"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogueStats"
+
+components:
+  schemas:
+    DesignRequest:
+      type: object
+      required:
+        - requirement
+      properties:
+        requirement:
+          type: string
+          minLength: 20
+          maxLength: 4000
+          description: "Natural-language integration requirement"
+        pattern_hint:
+          type: string
+          enum: [data_pipeline, api_integration, file_transfer, event_streaming, etl, unknown]
+          default: unknown
+        requester:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          default: []
+
+    DesignResponse:
+      type: object
+      properties:
+        design_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        requirement_summary:
+          type: string
+        recommended_tool:
+          type: string
+          enum: ["IBM Redwood", "webMethods", "Apache NiFi", "Azure Logic Apps"]
+        recommended_protocol:
+          type: string
+        recommended_data_format:
+          type: string
+        recommended_auth:
+          type: string
+        governance_status:
+          type: string
+        cos_uri:
+          type: string
+        prompt_template_version:
+          type: string
+
+    CatalogueStats:
+      type: object
+      properties:
+        total_designs:
+          type: integer
+        tool_frequency:
+          type: object
+          additionalProperties:
+            type: integer
+        protocol_frequency:
+          type: object
+          additionalProperties:
+            type: integer
+        top_tool:
+          type: string
+          nullable: true

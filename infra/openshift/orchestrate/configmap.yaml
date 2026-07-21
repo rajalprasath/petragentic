@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orchestrate-config
+  namespace: petragentic
+data:
+  AGENT1_URL: "http://agent1-svc"
+  AGENT2_URL: "http://agent2-svc"
+  WATSONX_URL: "https://private.us-south.ml.cloud.ibm.com"
+  WATSONX_MODEL_ID: "ibm/granite-13b-chat-v2"
+  WATSONX_MAX_NEW_TOKENS: "2048"
+  WATSONX_TEMPERATURE: "0.0"
+  MAX_CONVERSATION_TURNS: "20"
+  MAX_REACT_ITERATIONS: "8"
+  SKILL_CONNECT_TIMEOUT: "5.0"
+  SKILL_READ_TIMEOUT: "120.0"
+  SERVICE_NAME: "orchestrate"
+  LOG_LEVEL: "INFO"
+  ENVIRONMENT: "production"

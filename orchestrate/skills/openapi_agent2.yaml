@@ -1,0 +1,173 @@
+openapi: "3.1.0"
+
+info:
+  title: "Petragentic — Security Compliance Skill"
+  description: |
+    Validates Windows server security baselines over WinRM/PSRemoting. Detects
+    configuration drift against CIS Benchmark v3.0 + NIST 800-53 Rev 5 Gold Images,
+    generates PowerShell remediation scripts, and produces HTML compliance reports.
+    Registered in watsonx Orchestrate as a tool for the compliance agent.
+  version: "1.0.0"
+
+servers:
+  - url: "http://agent2-svc"
+    description: "ROKS ClusterIP (internal)"
+  - url: "http://localhost:8002"
+    description: "Local development"
+
+paths:
+  /validate:
+    post:
+      operationId: "run_security_audit"
+      summary: "Run a full security baseline validation against Windows servers"
+      description: |
+        Connects to one or more Windows servers via WinRM, collects security-relevant
+        state (folder permissions, shares, local groups, service accounts), and compares
+        against the registered Gold Image baseline from watsonx.data. Returns drift
+        findings mapped to CIS/NIST controls with generated PowerShell remediation
+        scripts. Uploads HTML + JSON reports to IBM COS.
+      tags:
+        - "compliance"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ValidateRequest"
+            example:
+              servers: ["WIN-WEB-001", "WIN-WEB-002"]
+              server_class: "standard-windows-server"
+              scan_type: "periodic_audit"
+              scope: ["full"]
+              winrm_username: "svc_audit"
+              winrm_password: "PLACEHOLDER_FROM_SECRETS_MANAGER"
+              triggered_by: "orchestrate_agent"
+      responses:
+        "200":
+          description: "Audit completed (may be partial if some servers failed)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidateResponse"
+        "422":
+          description: "Request validation error"
+        "502":
+          description: "WinRM connection or watsonx.ai error"
+
+  /report/{scan_id}:
+    get:
+      operationId: "get_scan_report"
+      summary: "Retrieve a compliance scan report by scan ID"
+      tags:
+        - "compliance"
+      parameters:
+        - name: scan_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: "UUID of the completed scan"
+      responses:
+        "200":
+          description: "Compliance scan report (JSON)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanReport"
+        "404":
+          description: "Scan ID not found"
+
+components:
+  schemas:
+    ValidateRequest:
+      type: object
+      required:
+        - servers
+        - winrm_username
+        - winrm_password
+      properties:
+        servers:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          description: "List of server hostnames or IPs to audit"
+        server_class:
+          type: string
+          default: "standard-windows-server"
+        scan_type:
+          type: string
+          enum: [new_validation, periodic_audit, drift_check]
+          default: periodic_audit
+        scope:
+          type: array
+          items:
+            type: string
+            enum: [full, folders, shares, local_groups, service_accounts]
+          default: [full]
+        winrm_username:
+          type: string
+        winrm_password:
+          type: string
+        triggered_by:
+          type: string
+          default: orchestrate_agent
+
+    ValidateResponse:
+      type: object
+      properties:
+        scan_id:
+          type: string
+        status:
+          type: string
+          enum: [complete, partial, failed]
+        message:
+          type: string
+        report:
+          $ref: "#/components/schemas/ScanReport"
+
+    ScanReport:
+      type: object
+      properties:
+        scan_id:
+          type: string
+        scan_type:
+          type: string
+        server_class:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+        summary:
+          $ref: "#/components/schemas/ScanSummary"
+        cos_json_uri:
+          type: string
+        cos_html_uri:
+          type: string
+
+    ScanSummary:
+      type: object
+      properties:
+        total_servers:
+          type: integer
+        compliant_servers:
+          type: integer
+        non_compliant_servers:
+          type: integer
+        failed_servers:
+          type: integer
+        total_findings:
+          type: integer
+        critical_findings:
+          type: integer
+        high_findings:
+          type: integer
+        top_cis_violations:
+          type: array
+          items:
+            type: string

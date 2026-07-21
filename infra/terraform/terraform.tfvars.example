@@ -1,0 +1,25 @@
+# Copy to terraform.tfvars — NEVER commit this file to git
+# It is already in .gitignore
+
+ibmcloud_api_key     = "YOUR_IBM_CLOUD_API_KEY"
+region               = "us-south"
+resource_group_name  = "petragentic-prod"
+prefix               = "petragentic"
+
+vpc_cidr             = "10.240.0.0/24"
+vpc_zone             = "us-south-1"
+
+# VPN — fill in before applying vpn.tf
+on_prem_vpn_peer_ip      = ""
+on_prem_vpn_psk          = ""
+on_prem_windows_subnet   = "192.168.10.0/24"
+
+roks_version      = "4.14_openshift"
+roks_flavor       = "bx2.4x16"
+roks_worker_count = 3
+
+icr_namespace        = "petragentic"
+cos_plan             = "standard"
+secrets_manager_plan = "standard"
+watsonx_plan         = "v2-standard"
+wxdata_plan          = "lakehouse-enterprise"

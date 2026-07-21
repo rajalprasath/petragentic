@@ -1,0 +1,19 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: gateway-route
+  namespace: petragentic
+  annotations:
+    haproxy.router.openshift.io/timeout: "120s"
+    haproxy.router.openshift.io/rate-limit-connections: "true"
+    haproxy.router.openshift.io/rate-limit-connections.concurrent-tcp: "100"
+spec:
+  host: ""   # auto-assigned by ROKS ingress controller
+  to:
+    kind: Service
+    name: gateway-svc
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

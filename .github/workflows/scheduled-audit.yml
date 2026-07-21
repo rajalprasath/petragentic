@@ -1,0 +1,66 @@
+name: Scheduled Security Audit
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # 06:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      servers:
+        description: "Comma-separated hostnames or 'all'"
+        default: "all"
+      scan_type:
+        description: "new_validation or periodic_audit"
+        default: "periodic_audit"
+      server_class:
+        description: "Baseline class to compare against"
+        default: "standard-windows-server"
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Agent 2 compliance scan
+        id: trigger
+        run: |
+          RESPONSE=$(curl -sf -X POST \
+            "${{ secrets.GATEWAY_URL }}/api/v1/compliance/validate" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.AUDIT_SERVICE_TOKEN }}" \
+            -H "X-Correlation-ID: audit-${{ github.run_id }}" \
+            -d '{
+              "servers": ["${{ github.event.inputs.servers || 'all' }}"],
+              "server_class": "${{ github.event.inputs.server_class || 'standard-windows-server' }}",
+              "scan_type": "${{ github.event.inputs.scan_type || 'periodic_audit' }}",
+              "winrm_username": "${{ secrets.WINRM_USERNAME }}",
+              "winrm_password": "${{ secrets.WINRM_PASSWORD }}",
+              "triggered_by": "github_actions_scheduled"
+            }')
+          SCAN_ID=$(echo $RESPONSE | python3 -c "import sys,json; print(json.load(sys.stdin)['scan_id'])")
+          echo "scan_id=$SCAN_ID" >> $GITHUB_OUTPUT
+          echo "Audit triggered: $SCAN_ID"
+
+      - name: Poll for completion (max 30 min)
+        run: |
+          for i in $(seq 1 60); do
+            STATUS=$(curl -sf \
+              "${{ secrets.GATEWAY_URL }}/api/v1/compliance/report/${{ steps.trigger.outputs.scan_id }}" \
+              -H "Authorization: Bearer ${{ secrets.AUDIT_SERVICE_TOKEN }}" | \
+              python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
+            echo "Poll $i/60: $STATUS"
+            if [ "$STATUS" = "complete" ]; then
+              echo "Audit complete"
+              exit 0
+            fi
+            if [ "$STATUS" = "failed" ]; then
+              echo "Audit failed"
+              exit 1
+            fi
+            sleep 30
+          done
+          echo "Audit timed out"
+          exit 1
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Scheduled audit failed. Scan ID: ${{ steps.trigger.outputs.scan_id }}, Run: ${{ github.run_id }}"

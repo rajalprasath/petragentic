@@ -1,0 +1,94 @@
+{
+  "folder_permission": {
+    "C:\\": {
+      "cis_control_id": "CIS 5.1",
+      "cis_description": "Ensure 'Access Credential Manager as a trusted caller' is set to 'No One'",
+      "nist_family": "AC",
+      "nist_control": "AC-3",
+      "nist_description": "Access Enforcement — enforce approved authorizations for logical access"
+    },
+    "C:\\Windows": {
+      "cis_control_id": "CIS 2.3.10.1",
+      "cis_description": "Ensure discretionary access control list on Windows directory is restricted",
+      "nist_family": "CM",
+      "nist_control": "CM-7",
+      "nist_description": "Least Functionality — configure to provide only essential capabilities"
+    },
+    "C:\\Program Files": {
+      "cis_control_id": "CIS 2.3.10.2",
+      "cis_description": "Ensure access to Program Files directories is restricted",
+      "nist_family": "AC",
+      "nist_control": "AC-6",
+      "nist_description": "Least Privilege — employ the principle of least privilege"
+    },
+    "C:\\Users": {
+      "cis_control_id": "CIS 2.3.10.3",
+      "cis_description": "Ensure Users directory ACL restricts non-admin write access",
+      "nist_family": "AC",
+      "nist_control": "AC-3",
+      "nist_description": "Access Enforcement — enforce approved authorizations"
+    },
+    "C:\\Scripts": {
+      "cis_control_id": "CIS 18.9.85.2",
+      "cis_description": "Ensure script execution directories restrict unauthorized write",
+      "nist_family": "CM",
+      "nist_control": "CM-6",
+      "nist_description": "Configuration Settings — establish and document configuration settings"
+    }
+  },
+  "share": {
+    "default": {
+      "cis_control_id": "CIS 9.1.1",
+      "cis_description": "Ensure Windows Firewall is enabled for all share profiles",
+      "nist_family": "SC",
+      "nist_control": "SC-7",
+      "nist_description": "Boundary Protection — monitor and control communications at boundaries"
+    },
+    "new_share": {
+      "cis_control_id": "CIS 9.2.1",
+      "cis_description": "Ensure SMB share access rights are restricted to authorized users only",
+      "nist_family": "AC",
+      "nist_control": "AC-17",
+      "nist_description": "Remote Access — establish and document remote access to information systems"
+    }
+  },
+  "group_member": {
+    "Administrators": {
+      "cis_control_id": "CIS 1.1.1",
+      "cis_description": "Ensure membership of Administrators group is limited to authorized accounts",
+      "nist_family": "AC",
+      "nist_control": "AC-2",
+      "nist_description": "Account Management — manage information system accounts"
+    },
+    "Remote Desktop Users": {
+      "cis_control_id": "CIS 2.2.26",
+      "cis_description": "Ensure 'Allow log on through Remote Desktop Services' is controlled",
+      "nist_family": "AC",
+      "nist_control": "AC-17",
+      "nist_description": "Remote Access — establish usage restrictions for remote access"
+    },
+    "Backup Operators": {
+      "cis_control_id": "CIS 2.2.4",
+      "cis_description": "Ensure 'Back up files and directories' user right is restricted",
+      "nist_family": "AC",
+      "nist_control": "AC-6",
+      "nist_description": "Least Privilege — restrict backup operator membership"
+    }
+  },
+  "service_account": {
+    "default": {
+      "cis_control_id": "CIS 3.1",
+      "cis_description": "Ensure service accounts do not use privileged or domain admin credentials",
+      "nist_family": "IA",
+      "nist_control": "IA-5",
+      "nist_description": "Authenticator Management — manage information system authenticators"
+    },
+    "high_privilege": {
+      "cis_control_id": "CIS 3.2",
+      "cis_description": "Ensure services running as SYSTEM have explicit approval",
+      "nist_family": "AC",
+      "nist_control": "AC-6",
+      "nist_description": "Least Privilege — ensure services run with minimum required privileges"
+    }
+  }
+}
